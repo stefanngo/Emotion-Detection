@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Tracker Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Libraries -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="light-mode">
+    <div class="app-container">
+        <header>
+            <div class="logo-section">
+                <div class="icon-box">🧠</div>
+                <h1>EmotionDiary <span class="badge">Pro</span></h1>
+            </div>
+            <div class="header-actions">
+                <button id="theme-toggle" class="btn-icon" title="Toggle Dark/Light Mode">🌓</button>
+                <div class="status-indicator">
+                    <div id="connection-dot" class="dot"></div>
+                    <span id="status-text">Initializing AI...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Left Panel: Controls & Micro View -->
+            <aside class="side-panel">
+                <section class="card webcam-card">
+                    <div class="card-header">
+                        <h3>Live Feed</h3>
+                        <span id="confidence-tag" class="tag">Confidence: 0%</span>
+                    </div>
+                    <div class="video-wrapper">
+                        <video id="webcam" autoplay muted playsinline></video>
+                        <div id="ai-warning" class="overlay hidden">
+                            <div class="warning-content">
+                                <span>⚠️</span>
+                                <p>Cannot see face - Pausing collection</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card settings-card">
+                    <h3>Settings</h3>
+                    <div class="input-group">
+                        <label>Scan Frequency (sec)</label>
+                        <input type="number" id="scan-freq" value="5" min="1" max="60">
+                    </div>
+                    <div class="input-group">
+                        <label>Report Frequency (min)</label>
+                        <input type="number" id="report-freq" value="10" min="1" max="120">
+                    </div>
+                    <button id="save-settings" class="btn-primary">Update Settings</button>
+                </section>
+
+                <section class="card radar-card">
+                    <h3>Micro View (Real-time)</h3>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Right Panel: Macro View & History -->
+            <div class="main-content">
+                <section class="card export-card">
+                    <div class="export-header">
+                        <h3>Data Export</h3>
+                        <div class="date-range">
+                            <input type="date" id="export-start">
+                            <span>to</span>
+                            <input type="date" id="export-end">
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button id="download-csv" class="btn-secondary">📊 Download CSV</button>
+                        <button id="download-pdf" class="btn-secondary">📄 Download PDF Report</button>
+                        <button id="clear-data" class="btn-danger">🗑️ Clear All Data</button>
+                    </div>
+                </section>
+
+                <section class="card line-card" id="report-section">
+                    <div class="card-header">
+                        <h3>Macro View (Longitudinal)</h3>
+                        <div class="annotation-input">
+                            <input type="text" id="current-note" placeholder="What are you doing right now?">
+                        </div>
+                    </div>
+                    <div class="chart-container large">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="card diary-card">
+                    <h3>Recent Diary Entries</h3>
+                    <div id="diary-list" class="diary-list">
+                        <!-- Entries will be injected here -->
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Emotion Peaks -->
+    <div id="peak-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-title">Emotion Insights</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

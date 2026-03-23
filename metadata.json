@@ -1,0 +1,7 @@
+{
+  "name": "Emotion Tracker Pro",
+  "description": "Professional-grade emotion tracking dashboard with real-time AI analysis, longitudinal graphing, and PDF reporting.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
