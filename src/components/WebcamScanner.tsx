@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { Camera, CameraOff, Loader2, Wifi } from 'lucide-react';
+import { CameraOff, Loader2, Wifi } from 'lucide-react';
 import { clsx } from 'clsx';
 import { EmotionData } from '../types';
 
@@ -15,11 +15,15 @@ const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
 export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecording, detectionSensitivity }) => {
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // State for your phone's IP Address
   const [ipUrl, setIpUrl] = useState('http://192.168.1.13:8080/video');
+
+  // NEW: Track if the user has scrolled past the video
+  const [isPiPMode, setIsPiPMode] = useState(false);
+
+  // Load AI Models
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -36,6 +40,23 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
     loadModels();
   }, []);
 
+  // NEW: The Scroll Tripwire (Intersection Observer)
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // If the main container leaves the screen, activate Picture-in-Picture
+        setIsPiPMode(!entry.isIntersecting);
+      },
+      { threshold: 0.1 } // Triggers when 90% of the box is scrolled out of view
+    );
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // The AI Scanning Logic
   useEffect(() => {
     if (!isLoaded || !imgRef.current || !isRecording) return;
 
@@ -46,7 +67,6 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
       if (!isMounted || !imgRef.current) return;
 
       try {
-        // AI reads directly from the networked <img> tag now!
         const detections = await faceapi
           .detectSingleFace(imgRef.current, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: detectionSensitivity }))
           .withFaceExpressions();
@@ -55,7 +75,7 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
           onScan(detections.expressions as unknown as EmotionData);
         }
       } catch (err) {
-        // Silent catch: MJPEG frames sometimes drop over WiFi, causing momentary read errors
+        // Silent catch for dropped Wi-Fi frames
       }
 
       if (isMounted) {
@@ -63,7 +83,6 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
       }
     };
 
-    // Wait a brief moment for the network image to load before scanning
     setTimeout(detect, 500);
 
     return () => {
@@ -74,19 +93,28 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Network Config UI */}
       <div className="flex items-center gap-2 p-3 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
         <Wifi className="w-4 h-4 text-emerald-500" />
         <input
           type="text"
           value={ipUrl}
           onChange={(e) => setIpUrl(e.target.value)}
-          placeholder="http://192.168.1.13:8080/video"
+          placeholder="http://192.168.1.X:8080/video"
           className="flex-1 bg-transparent border-none text-sm outline-none text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400"
         />
       </div>
 
-      <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner">
+      {/* This invisible wrapper acts as the tripwire for scrolling */}
+      <div ref={containerRef} className="w-full aspect-video" />
+
+      {/* The actual video container that detaches and floats */}
+      <div className={clsx(
+        "bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-xl transition-all duration-300 z-50",
+        isPiPMode
+          ? "fixed bottom-6 right-6 w-64 aspect-video shadow-2xl"
+          : "absolute top-auto bottom-auto left-auto right-auto mt-16 w-full aspect-video"
+      )}>
+
         {!isLoaded && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-3">
             <Loader2 className="w-8 h-8 animate-spin" />
@@ -94,7 +122,6 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
           </div>
         )}
 
-        {/* We use an <img> tag with crossOrigin allowing cross-network data */}
         <img
           ref={imgRef}
           src={isRecording ? ipUrl : ''}
