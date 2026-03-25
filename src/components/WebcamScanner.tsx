@@ -104,40 +104,41 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
         />
       </div>
 
-      {/* This invisible wrapper acts as the tripwire for scrolling */}
-      <div ref={containerRef} className="w-full aspect-video" />
+      {/* THE FIX: This wrapper is relative. It holds the physical space on the page so nothing jumps! */}
+      <div ref={containerRef} className="relative w-full aspect-video">
 
-      {/* The actual video container that detaches and floats */}
-      <div className={clsx(
-        "bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-xl transition-all duration-300 z-50",
-        isPiPMode
-          ? "fixed bottom-6 right-6 w-64 aspect-video shadow-2xl"
-          : "absolute top-auto bottom-auto left-auto right-auto mt-16 w-full aspect-video"
-      )}>
+        {/* The video container: Locked inside the wrapper normally, FIXED to the screen when scrolling */}
+        <div className={clsx(
+          "bg-zinc-900 overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-all duration-300 z-50",
+          isPiPMode
+            ? "fixed bottom-6 right-6 w-64 aspect-video shadow-2xl rounded-2xl"
+            : "absolute inset-0 w-full h-full rounded-2xl shadow-inner"
+        )}>
 
-        {!isLoaded && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-3">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-sm font-medium">Loading AI Models...</p>
-          </div>
-        )}
-
-        <img
-          ref={imgRef}
-          src={isRecording ? ipUrl : ''}
-          crossOrigin="anonymous"
-          className={clsx(
-            "w-full h-full object-cover transition-opacity duration-500",
-            isRecording ? "opacity-100" : "opacity-0"
+          {!isLoaded && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-3 z-10">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-sm font-medium">Loading AI Models...</p>
+            </div>
           )}
-          alt="IoT Camera Feed"
-        />
 
-        <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10">
-          <div className={clsx("w-2 h-2 rounded-full", isRecording ? "bg-emerald-500 animate-pulse" : "bg-zinc-500")} />
-          <span className="text-[10px] uppercase tracking-wider font-bold text-white">
-            {isRecording ? "IoT Sensor Live" : "Sensor Offline"}
-          </span>
+          <img
+            ref={imgRef}
+            src={isRecording ? ipUrl : ''}
+            crossOrigin="anonymous"
+            className={clsx(
+              "w-full h-full object-cover transition-opacity duration-500",
+              isRecording ? "opacity-100" : "opacity-0"
+            )}
+            alt="IoT Camera Feed"
+          />
+
+          <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10 z-10">
+            <div className={clsx("w-2 h-2 rounded-full", isRecording ? "bg-emerald-500 animate-pulse" : "bg-zinc-500")} />
+            <span className="text-[10px] uppercase tracking-wider font-bold text-white">
+              {isRecording ? "IoT Sensor Live" : "Sensor Offline"}
+            </span>
+          </div>
         </div>
       </div>
     </div>
