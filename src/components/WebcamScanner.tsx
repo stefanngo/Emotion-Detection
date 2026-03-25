@@ -19,23 +19,23 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
   const [error, setError] = useState<string | null>(null);
 
   // State for your phone's IP Address
-  const [ipUrl, setIpUrl] = useState('http://192.168.1.X:8080/video');
+  const [ipUrl, setIpUrl] = useState('const [ipUrl, setIpUrl] = useState('http://192.168.1.13:8080/video');');
 
-  useEffect(() => {
-    const loadModels = async () => {
-      try {
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
-        ]);
-        setIsLoaded(true);
-      } catch (err) {
-        console.error('Error loading models:', err);
-        setError('Failed to load AI models.');
-      }
-    };
-    loadModels();
-  }, []);
+    useEffect(() => {
+      const loadModels = async () => {
+        try {
+          await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+          ]);
+          setIsLoaded(true);
+        } catch (err) {
+          console.error('Error loading models:', err);
+          setError('Failed to load AI models.');
+        }
+      };
+      loadModels();
+    }, []);
 
   useEffect(() => {
     if (!isLoaded || !imgRef.current || !isRecording) return;
@@ -82,7 +82,7 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
           type="text"
           value={ipUrl}
           onChange={(e) => setIpUrl(e.target.value)}
-          placeholder="http://192.168.1.X:8080/video"
+          placeholder="http://192.168.1.13:8080/video"
           className="flex-1 bg-transparent border-none text-sm outline-none text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400"
         />
       </div>
