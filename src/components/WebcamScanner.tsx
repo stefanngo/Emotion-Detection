@@ -104,15 +104,16 @@ export const WebcamScanner: React.FC<Props> = ({ onScan, scanFrequency, isRecord
         />
       </div>
 
-      {/* THE FIX: This wrapper is relative. It holds the physical space on the page so nothing jumps! */}
-      <div ref={containerRef} className="relative w-full aspect-video">
+      {/* THE FIX: The Tripwire Wrapper. It holds the physical space so the dashboard doesn't collapse. */}
+      <div ref={containerRef} className="w-full aspect-video">
 
-        {/* The video container: Locked inside the wrapper normally, FIXED to the screen when scrolling */}
+        {/* The video container: Removed 'transition-all' to instantly fix the video lag! 
+            Z-index now drops to 10 when normal so it doesn't block your webpage. */}
         <div className={clsx(
-          "bg-zinc-900 overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-all duration-300 z-50",
+          "bg-zinc-900 overflow-hidden border border-zinc-200 dark:border-zinc-800",
           isPiPMode
-            ? "fixed bottom-6 right-6 w-64 aspect-video shadow-2xl rounded-2xl"
-            : "absolute inset-0 w-full h-full rounded-2xl shadow-inner"
+            ? "fixed bottom-6 right-6 w-64 aspect-video shadow-2xl rounded-2xl z-50"
+            : "relative w-full h-full rounded-2xl shadow-inner z-10"
         )}>
 
           {!isLoaded && (
