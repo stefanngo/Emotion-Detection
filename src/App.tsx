@@ -73,13 +73,23 @@ export default function App() {
     loadHistoricalData();
   }, []);
 
-  // --- MQTT SHIFTR.IO CONNECTION ---
+  // --- MQTT SHIFTR.IO CONNECTION (Quota Saver) ---
   useEffect(() => {
+    // If we are NOT recording, kill the connection to save the 6-hour daily quota!
+    if (!isRecording) {
+      if (mqttClientRef.current) {
+        mqttClientRef.current.end();
+        mqttClientRef.current = null;
+        console.log('Disconnected from Shiftr.io to save quota.');
+      }
+      return;
+    }
+
     const shiftrUrl = 'wss://emotion-twin:IQMJdZL2vKfM6x3r@emotion-twin.cloud.shiftr.io:443';
 
-    // We add a random number to the ID so refreshing the page doesn't cause a collision
     const client = mqtt.connect(shiftrUrl, {
-      clientId: 'React-AI-' + Math.floor(Math.random() * 10000)
+      clientId: 'React-AI-' + Math.floor(Math.random() * 10000),
+      reconnectPeriod: 5000
     });
 
     client.on('connect', () => {
@@ -87,16 +97,15 @@ export default function App() {
     });
 
     client.on('error', (err) => {
-      console.error('MQTT Connection Error:', err);
+      console.error('MQTT Connection Error (Likely out of quota):', err.message);
     });
 
     mqttClientRef.current = client;
 
-    // Cleanup connection when user leaves the page
     return () => {
       if (client) client.end();
     };
-  }, []);
+  }, [isRecording]); // Re-run this logic whenever the Record button is clicked
 
   useEffect(() => {
     localStorage.setItem('emotion-tracker-settings', JSON.stringify(settings));
@@ -170,29 +179,39 @@ export default function App() {
   const handleScan = useCallback((emotions: EmotionData) => {
     setCurrentEmotions(emotions);
 
-    // 1. Calculate the dominant emotion
     const expressions = emotions as unknown as Record<string, number>;
-    const dominant = Object.keys(expressions).reduce((a, b) =>
-      expressions[a] > expressions[b] ? a : b
-    );
+
+    // Check if the camera lost the face (all emotion values are 0)
+    const isFaceLost = Object.values(expressions).every(val => val === 0);
+
+    // Calculate dominant emotion (If face is lost, set it to a special 'none' state)
+    const dominant = isFaceLost
+      ? 'none'
+      : Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
 
     // 2. THE DEBOUNCE SHIELD
-    // Only send the message if the emotion is DIFFERENT from the last one we sent
     if (dominant !== lastPublishedEmotionRef.current) {
       if (mqttClientRef.current && mqttClientRef.current.connected) {
+        // This will publish 'none' when you walk away, allowing you to turn off Wokwi LEDs automatically!
         mqttClientRef.current.publish('smartroom/emotion', dominant);
         console.log("Successfully published:", dominant);
-
-        // Save this emotion to the memory bank so we don't spam it again!
         lastPublishedEmotionRef.current = dominant;
       }
     }
 
-    // 3. Save to Database
-    saveScanToDB(emotions).catch(console.error);
+    // 3. Save to Database (We skip saving 'none' states so we don't fill your hard drive with empty data)
+    if (!isFaceLost) {
+      saveScanToDB(emotions).catch(console.error);
+    }
 
-    // 4. Update UI
+    // 4. Update UI Graph
     setScans((prev) => {
+      // Prevent spamming the live graph with thousands of 0s if you walk away for an hour
+      const lastScan = prev[prev.length - 1];
+      if (isFaceLost && lastScan && Object.values(lastScan.emotions).every(val => val === 0)) {
+        return prev;
+      }
+
       const newScans = [...prev, { timestamp: Date.now(), emotions }];
       if (newScans.length > 5000) return newScans.slice(newScans.length - 5000);
       return newScans;
