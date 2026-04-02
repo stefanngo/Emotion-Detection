@@ -126,24 +126,35 @@ export default function App() {
 
   const generateReport = useCallback(() => {
     const newScans = scans.filter(scan => scan.timestamp > lastReportTimeRef.current.getTime());
+
     if (newScans.length === 0) {
       lastReportTimeRef.current = new Date();
       return;
     }
 
-    const average = newScans.reduce(
-      (acc, scan) => {
-        Object.keys(scan.emotions).forEach((key) => {
-          acc[key as keyof EmotionData] += scan.emotions[key as keyof EmotionData];
-        });
-        return acc;
-      },
-      { ...INITIAL_EMOTIONS, neutral: 0 }
+    // THE MATH FIX: Filter out the "Face Lost" zeroes so they don't drag the average down!
+    const activeScans = newScans.filter(scan =>
+      Object.values(scan.emotions).some(val => val > 0)
     );
 
-    Object.keys(average).forEach((key) => {
-      average[key as keyof EmotionData] /= newScans.length;
-    });
+    let average = { ...INITIAL_EMOTIONS, neutral: 0 }; // Added neutral: 0 to match your old baseline
+
+    if (activeScans.length > 0) {
+      average = activeScans.reduce(
+        (acc, scan) => {
+          Object.keys(scan.emotions).forEach((key) => {
+            acc[key as keyof EmotionData] += scan.emotions[key as keyof EmotionData];
+          });
+          return acc;
+        },
+        { angry: 0, disgusted: 0, fearful: 0, happy: 0, neutral: 0, sad: 0, surprised: 0 }
+      );
+
+      // Divide by ACTIVE scans only to get the true clinical average
+      Object.keys(average).forEach((key) => {
+        average[key as keyof EmotionData] /= activeScans.length;
+      });
+    }
 
     const now = new Date();
     const formatTime = (date: Date) =>
