@@ -1,3 +1,4 @@
+import mqtt from 'mqtt';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WebcamScanner } from './components/WebcamScanner';
 import { EmotionRadar } from './components/EmotionRadar';
@@ -50,6 +51,10 @@ export default function App() {
 
   const lastReportTimeRef = useRef<Date>(new Date());
 
+  // MQTT & Debounce References
+  const mqttClientRef = useRef<mqtt.MqttClient | null>(null);
+  const lastPublishedEmotionRef = useRef<string>("");
+
   // --- BOOT SEQUENCE ---
   useEffect(() => {
     const loadHistoricalData = async () => {
@@ -66,6 +71,31 @@ export default function App() {
     };
 
     loadHistoricalData();
+  }, []);
+
+  // --- MQTT SHIFTR.IO CONNECTION ---
+  useEffect(() => {
+    const shiftrUrl = 'wss://emotion-twin:IQMJdZL2vKfM6x3r@emotion-twin.cloud.shiftr.io:443';
+
+    // We add a random number to the ID so refreshing the page doesn't cause a collision
+    const client = mqtt.connect(shiftrUrl, {
+      clientId: 'React-AI-' + Math.floor(Math.random() * 10000)
+    });
+
+    client.on('connect', () => {
+      console.log('React is successfully connected to Shiftr.io!');
+    });
+
+    client.on('error', (err) => {
+      console.error('MQTT Connection Error:', err);
+    });
+
+    mqttClientRef.current = client;
+
+    // Cleanup connection when user leaves the page
+    return () => {
+      if (client) client.end();
+    };
   }, []);
 
   useEffect(() => {
@@ -136,12 +166,32 @@ export default function App() {
     return () => clearInterval(interval);
   }, [settings.reportFrequency, generateReport]);
 
-  // --- DATABASE WRITE LOGIC ---
+  // --- DATABASE & MQTT WRITE LOGIC ---
   const handleScan = useCallback((emotions: EmotionData) => {
     setCurrentEmotions(emotions);
 
+    // 1. Calculate the dominant emotion
+    const expressions = emotions as unknown as Record<string, number>;
+    const dominant = Object.keys(expressions).reduce((a, b) =>
+      expressions[a] > expressions[b] ? a : b
+    );
+
+    // 2. THE DEBOUNCE SHIELD
+    // Only send the message if the emotion is DIFFERENT from the last one we sent
+    if (dominant !== lastPublishedEmotionRef.current) {
+      if (mqttClientRef.current && mqttClientRef.current.connected) {
+        mqttClientRef.current.publish('smartroom/emotion', dominant);
+        console.log("Successfully published:", dominant);
+
+        // Save this emotion to the memory bank so we don't spam it again!
+        lastPublishedEmotionRef.current = dominant;
+      }
+    }
+
+    // 3. Save to Database
     saveScanToDB(emotions).catch(console.error);
 
+    // 4. Update UI
     setScans((prev) => {
       const newScans = [...prev, { timestamp: Date.now(), emotions }];
       if (newScans.length > 5000) return newScans.slice(newScans.length - 5000);
