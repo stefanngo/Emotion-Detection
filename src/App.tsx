@@ -7,6 +7,9 @@ import { EmotionDiary } from './components/EmotionDiary';
 import { EmotionData, DiaryEntry, AppSettings } from './types';
 import { Brain, Sparkles, LayoutDashboard, History, Moon, Sun, Play, Square } from 'lucide-react';
 
+// DB IMPORTS
+import { saveScanToDB, getRecentScans } from './lib/db';
+
 const INITIAL_SETTINGS: AppSettings = {
   scanFrequency: 5,
   reportFrequency: 60,
@@ -43,6 +46,26 @@ export default function App() {
   });
 
   const lastReportTimeRef = useRef<Date>(new Date());
+
+  // --- NEW: BOOT SEQUENCE ---
+  // Load historical data from IndexedDB when the app first opens
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      try {
+        const historicalRecords = await getRecentScans(24); // Fetch last 24 hours
+        const formattedScans = historicalRecords.map(record => ({
+          timestamp: record.timestamp,
+          emotions: record.emotions
+        }));
+        setScans(formattedScans);
+      } catch (error) {
+        console.error("Failed to load historical data from DB:", error);
+      }
+    };
+
+    loadHistoricalData();
+  }, []);
+  // --------------------------
 
   useEffect(() => {
     localStorage.setItem('emotion-tracker-settings', JSON.stringify(settings));
@@ -83,7 +106,7 @@ export default function App() {
     });
 
     const now = new Date();
-    const formatTime = (date: Date) => 
+    const formatTime = (date: Date) =>
       date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const newEntry: DiaryEntry = {
@@ -103,7 +126,7 @@ export default function App() {
     const interval = setInterval(() => {
       const now = new Date();
       const diffMinutes = (now.getTime() - lastReportTimeRef.current.getTime()) / (1000 * 60);
-      
+
       if (diffMinutes >= settings.reportFrequency) {
         generateReport();
       }
@@ -112,10 +135,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, [settings.reportFrequency, generateReport]);
 
+  // --- UPDATED: DATABASE WRITE LOGIC ---
   const handleScan = useCallback((emotions: EmotionData) => {
     setCurrentEmotions(emotions);
-    setScans((prev) => [...prev, { timestamp: Date.now(), emotions }]);
+
+    // 1. FIRE AND FORGET: Save to the offline IndexedDB in the background
+    saveScanToDB(emotions).catch(console.error);
+
+    // 2. Update the Live UI Graph
+    setScans((prev) => {
+      const newScans = [...prev, { timestamp: Date.now(), emotions }];
+      // Keep up to 5000 points in React memory (about 1.5 hours at 1 scan/sec)
+      // to prevent the browser tab from crashing, while the DB holds everything forever.
+      if (newScans.length > 5000) return newScans.slice(newScans.length - 5000);
+      return newScans;
+    });
   }, []);
+  // -------------------------------------
 
   const updateAnnotation = (id: string, annotation: string) => {
     setDiaryEntries((prev) =>
@@ -149,7 +185,7 @@ export default function App() {
       if (val > maxSpike) {
         maxSpike = val;
         maxTimestamp = scan.timestamp;
-        
+
         // Find corresponding activity for this scan
         activity = 'Current Session';
         for (const entry of diaryEntries) {
@@ -185,7 +221,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
               aria-label="Toggle dark mode"
@@ -212,11 +248,10 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setIsRecording(!isRecording)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
-                    isRecording 
-                      ? 'bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400' 
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${isRecording
+                      ? 'bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400'
                       : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  }`}
+                    }`}
                 >
                   {isRecording ? (
                     <>
@@ -231,9 +266,9 @@ export default function App() {
                   )}
                 </button>
               </div>
-              <WebcamScanner 
-                onScan={handleScan} 
-                scanFrequency={settings.scanFrequency} 
+              <WebcamScanner
+                onScan={handleScan}
+                scanFrequency={settings.scanFrequency}
                 isRecording={isRecording}
                 detectionSensitivity={settings.detectionSensitivity}
               />
@@ -245,10 +280,10 @@ export default function App() {
               <div className="relative z-10">
                 <h3 className="font-bold text-lg mb-1">Next Report</h3>
                 <p className="text-emerald-100 text-sm opacity-80">
-                  Your emotional data is being bundled. 
+                  Your emotional data is being bundled.
                   {scans.length} scans collected so far.
                 </p>
-                <button 
+                <button
                   onClick={generateReport}
                   className="mt-4 px-4 py-2 bg-white text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-50 transition-colors"
                 >
