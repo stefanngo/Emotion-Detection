@@ -1,31 +1,27 @@
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { getRecentScans } from './db';
 
-// --- CSV EXPORTER ---
+// --- CSV EXPORTER (Unchanged) ---
 export const downloadCSV = async () => {
     try {
-        const scans = await getRecentScans(24); // Pull the last 24 hours of raw data
+        const scans = await getRecentScans(24);
 
         if (scans.length === 0) {
             alert("No data available to export. Please record a session first.");
             return;
         }
 
-        // Set up the CSV Headers
         let csvContent = "Timestamp,Local Time,Angry,Disgusted,Fearful,Happy,Neutral,Sad,Surprised\n";
 
-        // Format the massive array into a comma-separated string
         scans.forEach(row => {
             const date = new Date(row.timestamp);
-            const timeString = date.toLocaleTimeString([], { hour12: false }); // 24hr format
+            const timeString = date.toLocaleTimeString([], { hour12: false });
             const { angry, disgusted, fearful, happy, neutral, sad, surprised } = row.emotions;
 
-            // Round to 4 decimal places to keep the file size manageable
             csvContent += `${row.timestamp},${timeString},${angry.toFixed(4)},${disgusted.toFixed(4)},${fearful.toFixed(4)},${happy.toFixed(4)},${neutral.toFixed(4)},${sad.toFixed(4)},${surprised.toFixed(4)}\n`;
         });
 
-        // Create an invisible anchor tag to force the browser to download the file
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
@@ -43,7 +39,7 @@ export const downloadCSV = async () => {
     }
 };
 
-// --- PDF EXPORTER ---
+// --- PDF EXPORTER (Upgraded Engine) ---
 export const downloadPDF = async (elementId: string) => {
     const element = document.getElementById(elementId);
     if (!element) {
@@ -52,23 +48,21 @@ export const downloadPDF = async (elementId: string) => {
     }
 
     try {
-        // Alert the user since this takes a second
         const btn = document.getElementById('pdf-btn');
         if (btn) btn.innerText = "Generating PDF...";
 
-        // Take a high-res screenshot of the dashboard
-        const canvas = await html2canvas(element, {
-            scale: 2, // High DPI for crisp text
-            useCORS: true, // Allows it to capture your video feed if possible
-            backgroundColor: '#18181b' // Forces the dark theme background
+        // Use the modern html-to-image engine
+        const imgData = await toPng(element, {
+            quality: 1,
+            pixelRatio: 2, // High resolution
+            backgroundColor: '#18181b', // Forces the dark theme background
         });
-
-        const imgData = canvas.toDataURL('image/png');
 
         // Initialize an A4 PDF
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        // Dynamically calculate height based on the specific aspect ratio of your dashboard
+        const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
 
         // Paste the image into the PDF
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
