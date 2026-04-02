@@ -5,10 +5,13 @@ import { EmotionLineGraph } from './components/EmotionLineGraph';
 import { SettingsPanel } from './components/SettingsPanel';
 import { EmotionDiary } from './components/EmotionDiary';
 import { EmotionData, DiaryEntry, AppSettings } from './types';
-import { Brain, Sparkles, LayoutDashboard, History, Moon, Sun, Play, Square } from 'lucide-react';
+import { Brain, Sparkles, LayoutDashboard, History, Moon, Sun, Play, Square, Download, FileText } from 'lucide-react';
 
 // DB IMPORTS
 import { saveScanToDB, getRecentScans } from './lib/db';
+
+// CSV-EXPORT IMPORTS
+import { downloadCSV, downloadPDF } from './lib/export';
 
 const INITIAL_SETTINGS: AppSettings = {
   scanFrequency: 5,
@@ -47,12 +50,11 @@ export default function App() {
 
   const lastReportTimeRef = useRef<Date>(new Date());
 
-  // --- NEW: BOOT SEQUENCE ---
-  // Load historical data from IndexedDB when the app first opens
+  // --- BOOT SEQUENCE ---
   useEffect(() => {
     const loadHistoricalData = async () => {
       try {
-        const historicalRecords = await getRecentScans(24); // Fetch last 24 hours
+        const historicalRecords = await getRecentScans(24);
         const formattedScans = historicalRecords.map(record => ({
           timestamp: record.timestamp,
           emotions: record.emotions
@@ -65,7 +67,6 @@ export default function App() {
 
     loadHistoricalData();
   }, []);
-  // --------------------------
 
   useEffect(() => {
     localStorage.setItem('emotion-tracker-settings', JSON.stringify(settings));
@@ -130,28 +131,23 @@ export default function App() {
       if (diffMinutes >= settings.reportFrequency) {
         generateReport();
       }
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [settings.reportFrequency, generateReport]);
 
-  // --- UPDATED: DATABASE WRITE LOGIC ---
+  // --- DATABASE WRITE LOGIC ---
   const handleScan = useCallback((emotions: EmotionData) => {
     setCurrentEmotions(emotions);
 
-    // 1. FIRE AND FORGET: Save to the offline IndexedDB in the background
     saveScanToDB(emotions).catch(console.error);
 
-    // 2. Update the Live UI Graph
     setScans((prev) => {
       const newScans = [...prev, { timestamp: Date.now(), emotions }];
-      // Keep up to 5000 points in React memory (about 1.5 hours at 1 scan/sec)
-      // to prevent the browser tab from crashing, while the DB holds everything forever.
       if (newScans.length > 5000) return newScans.slice(newScans.length - 5000);
       return newScans;
     });
   }, []);
-  // -------------------------------------
 
   const updateAnnotation = (id: string, annotation: string) => {
     setDiaryEntries((prev) =>
@@ -169,7 +165,6 @@ export default function App() {
     let maxTimestamp = 0;
     let activity = 'Current Session';
 
-    // Search historical diary entries
     diaryEntries.forEach((entry) => {
       const val = entry.averageEmotions[emotion as keyof EmotionData];
       if (val > maxSpike) {
@@ -179,14 +174,12 @@ export default function App() {
       }
     });
 
-    // Search current session scans
     scans.forEach((scan) => {
       const val = scan.emotions[emotion as keyof EmotionData];
       if (val > maxSpike) {
         maxSpike = val;
         maxTimestamp = scan.timestamp;
 
-        // Find corresponding activity for this scan
         activity = 'Current Session';
         for (const entry of diaryEntries) {
           if (entry.timestamp && scan.timestamp <= entry.timestamp) {
@@ -238,7 +231,8 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Controls & Real-time */}
+
+          {/* LEFT COLUMN: Controls & Real-time */}
           <div className="lg:col-span-4 space-y-8">
             <section className="space-y-4">
               <div className="flex items-center justify-between px-1">
@@ -249,8 +243,8 @@ export default function App() {
                 <button
                   onClick={() => setIsRecording(!isRecording)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${isRecording
-                      ? 'bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400'
-                      : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    ? 'bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400'
+                    : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400'
                     }`}
                 >
                   {isRecording ? (
@@ -292,10 +286,32 @@ export default function App() {
               </div>
               <Brain className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10 group-hover:scale-110 transition-transform duration-500" />
             </div>
+
+            {/* Analytics Export Controls */}
+            <section className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors duration-300">
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Data Analytics</h3>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={downloadCSV}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Raw CSV
+                </button>
+                <button
+                  id="pdf-btn"
+                  onClick={() => downloadPDF('analytics-dashboard')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  Export PDF Report
+                </button>
+              </div>
+            </section>
           </div>
 
-          {/* Right Column: Visualization & Diary */}
-          <div className="lg:col-span-8 space-y-8">
+          {/* RIGHT COLUMN: Visualization & Diary */}
+          <div id="analytics-dashboard" className="lg:col-span-8 space-y-8">
             <section className="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors duration-300">
               <div className="flex items-center justify-between mb-8">
                 <div>
@@ -336,6 +352,7 @@ export default function App() {
               <EmotionDiary entries={diaryEntries} onUpdateAnnotation={updateAnnotation} />
             </section>
           </div>
+
         </div>
       </main>
     </div>
