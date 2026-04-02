@@ -7,6 +7,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { EmotionDiary } from './components/EmotionDiary';
 import { EmotionData, DiaryEntry, AppSettings } from './types';
 import { Brain, Sparkles, LayoutDashboard, History, Moon, Sun, Play, Square, Download, FileText } from 'lucide-react';
+import { ClinicalReport } from './components/ClinicalReport';
 
 // DB IMPORTS
 import { saveScanToDB, getRecentScans } from './lib/db';
@@ -279,8 +280,31 @@ export default function App() {
     alert(`Highest peak for ${emotionName}: ${valueStr}% at ${timeString} during ${activity}.`);
   }, [scans, diaryEntries]);
 
+  // --- OVERALL SESSION AVERAGE (For the PDF Report) ---
+  const sessionAverageEmotions = React.useMemo(() => {
+    const validScans = scans.filter(scan =>
+      Object.values(scan.emotions).some(val => val > 0)
+    );
+
+    if (validScans.length === 0) return INITIAL_EMOTIONS;
+
+    const accumulator = { angry: 0, disgusted: 0, fearful: 0, happy: 0, neutral: 0, sad: 0, surprised: 0 };
+
+    validScans.forEach(scan => {
+      (Object.keys(scan.emotions) as Array<keyof EmotionData>).forEach(key => {
+        accumulator[key] += scan.emotions[key];
+      });
+    });
+
+    (Object.keys(accumulator) as Array<keyof EmotionData>).forEach(key => {
+      accumulator[key] /= validScans.length;
+    });
+
+    return accumulator;
+  }, [scans]);
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 pb-20 transition-colors duration-300">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 pb-20 transition-colors duration-300 relative overflow-hidden">
       {/* Header */}
       <header className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -309,7 +333,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
           {/* LEFT COLUMN: Controls & Real-time */}
@@ -378,9 +402,10 @@ export default function App() {
                   <Download className="w-4 h-4" />
                   Export Raw CSV
                 </button>
+                {/* PDF BUTTON UPDATED TO POINT TO CLINICAL REPORT */}
                 <button
                   id="pdf-btn"
-                  onClick={() => downloadPDF('analytics-dashboard')}
+                  onClick={() => downloadPDF('clinical-pdf-target')}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-xl text-xs font-bold transition-colors"
                 >
                   <FileText className="w-4 h-4" />
@@ -435,6 +460,17 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* THE GHOST RENDER: This sits entirely off-screen. The user never sees it, 
+          but the html-to-image camera takes a picture of it! */}
+      <div className="absolute top-[-9999px] left-[-9999px] z-0 pointer-events-none">
+        <ClinicalReport
+          scans={scans}
+          diaryEntries={diaryEntries}
+          sessionAverage={sessionAverageEmotions}
+        />
+      </div>
+
     </div>
   );
 }

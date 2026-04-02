@@ -39,32 +39,33 @@ export const downloadCSV = async () => {
     }
 };
 
-// --- PDF EXPORTER (Upgraded Engine) ---
+// --- PDF EXPORTER (Continuous Scroll Upgrade) ---
 export const downloadPDF = async (elementId: string) => {
     const element = document.getElementById(elementId);
-    if (!element) {
-        console.error(`Element with id ${elementId} not found.`);
-        return;
-    }
+    if (!element) return;
 
     try {
         const btn = document.getElementById('pdf-btn');
-        if (btn) btn.innerText = "Generating PDF...";
+        if (btn) btn.innerText = "Generating...";
 
-        // Use the modern html-to-image engine
         const imgData = await toPng(element, {
             quality: 1,
-            pixelRatio: 2, // High resolution
-            backgroundColor: '#18181b', // Forces the dark theme background
+            pixelRatio: 2,
+            backgroundColor: '#ffffff',
         });
 
-        // Initialize an A4 PDF
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        // Dynamically calculate height based on the specific aspect ratio of your dashboard
+        // A4 width is 210mm. We calculate the exact mathematical height needed to fit the content.
+        const pdfWidth = 210;
         const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
 
-        // Paste the image into the PDF
+        // THE FIX: We create a custom-sized PDF that is exactly as long as your report.
+        // No more awkward page breaks cutting text in half!
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: [pdfWidth, pdfHeight]
+        });
+
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`EmotionDiary_Report_${new Date().toISOString().split('T')[0]}.pdf`);
 
